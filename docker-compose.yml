@@ -1,8 +1,10 @@
-# Infraestructura de DESARROLLO (paridad con el VPS de producción).
-# La app PHP corre local (Herd); esto levanta solo los servicios de datos.
+version: '3.8'
+
 services:
   pgsql:
     image: postgres:16-alpine
+    container_name: postgres_db
+    restart: always
     ports:
       - "5432:5432"
     environment:
@@ -12,12 +14,30 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U poliquiz"]
+      test: ["CMD-SHELL", "pg_isready -U poliquiz -d poliquiz"]
       interval: 5s
+      timeout: 5s
       retries: 10
+
+  pgadmin_ui:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_ui
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+    ports:
+      - "8090:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      pgsql:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
     ports:
       - "6379:6379"
     volumes:
@@ -25,8 +45,10 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 5s
       retries: 10
 
 volumes:
   pgdata:
+  pgadmin_data:  # <-- Añadido para corregir el error de volumen no declarado
   redisdata:

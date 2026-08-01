@@ -35,6 +35,7 @@ class GameStateMachine
         $this->repo->updateState($pin, [...$extra, 'state' => $to->value]);
         $version = $this->repo->bumpVersion($pin);
         $this->repo->touch($pin);
+        $this->repo->touchActivity($pin);
 
         return $version;
     }

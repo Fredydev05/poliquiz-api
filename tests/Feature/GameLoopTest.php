@@ -25,56 +25,6 @@ beforeEach(function () {
     Redis::connection()->client()->flushdb();
 });
 
-/** Sala con quiz de 2 preguntas + N jugadores. Devuelve contexto completo. */
-function armarPartida(int $jugadores = 2): array
-{
-    $host = User::factory()->create();
-    $quiz = Quiz::factory()->for($host)->create();
-    Question::factory()->for($quiz)->count(2)->sequence(
-        ['position' => 0, 'time_limit' => 20],
-        ['position' => 1, 'time_limit' => 10, 'points_mode' => 'double'],
-    )->create();
-
-    $pin = comoDocente($host)
-        ->postJson('/api/v1/games', ['quiz_id' => $quiz->id])->json('pin');
-
-    $tokens = [];
-    foreach (range(1, $jugadores) as $i) {
-        $tokens["J$i"] = test()->postJson("/api/v1/games/$pin/join", ['nickname' => "J$i"])
-            ->json('player_token');
-    }
-
-    return [$host, $pin, $tokens];
-}
-
-/** Avanza get_ready → question ejecutando el StartQuestionJob capturado. */
-function lanzarPregunta(string $pin): void
-{
-    $uuid = Redis::hget("game:$pin", 'question_uuid');
-    app(App\Actions\Game\LaunchQuestion::class)->start($pin, $uuid);
-}
-
-/**
- * Request como jugador con guards LIMPIOS. En producción cada request es una
- * app nueva; en tests los guards cachean al último usuario resuelto, así que
- * hay que olvidarlos para que el X-Player-Token de ESTE request cuente.
- */
-function jugar(string $token)
-{
-    app('auth')->forgetGuards();
-
-    return test()->withHeader('X-Player-Token', $token);
-}
-
-/** Request como docente restaurando el guard default (espejo de jugar()). */
-function comoDocente(App\Models\User $user)
-{
-    app('auth')->forgetGuards();
-    config(['auth.defaults.guard' => 'web']);
-
-    return test()->actingAs($user);
-}
-
 it('runs start → get_ready → question with server timestamps', function () {
     Event::fake([GetReadyShown::class, QuestionStarted::class]);
     Bus::fake([StartQuestionJob::class, CloseQuestionJob::class]);

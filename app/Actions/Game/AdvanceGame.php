@@ -25,6 +25,7 @@ class AdvanceGame
         private readonly GameRepository $repo,
         private readonly GameStateMachine $machine,
         private readonly LaunchQuestion $launcher,
+        private readonly PersistGameResults $persist,
     ) {}
 
     public function handle(string $pin): array
@@ -67,14 +68,16 @@ class AdvanceGame
         GameEnded::dispatch($pin, $version, $this->topConDelta($pin, 3));
     }
 
-    /** podium → ended: marca la fila permanente y desarma la sala. */
+    /** podium → ended: persiste resultados, marca la fila y desarma la sala. */
     private function end(string $pin): void
     {
         $state = $this->repo->getState($pin);
         $this->machine->transition($pin, GameState::Podium, GameState::Ended);
 
+        // Persistir ANTES de destruir: es la última chance de leer Redis.
+        $this->persist->handle($pin);
+
         Game::whereKey($state['game_id'])->update(['status' => 'ended', 'ended_at' => now()]);
-        // (F6: aquí se despachará PersistResultsJob antes de destruir.)
         $this->repo->destroy($pin);
     }
 

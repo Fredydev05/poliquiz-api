@@ -14,7 +14,10 @@ use App\Services\Game\GameRepository;
  */
 class EndGame
 {
-    public function __construct(private readonly GameRepository $repo) {}
+    public function __construct(
+        private readonly GameRepository $repo,
+        private readonly PersistGameResults $persist,
+    ) {}
 
     public function handle(string $pin): void
     {
@@ -24,6 +27,9 @@ class EndGame
         }
 
         GameEnded::dispatch($pin, (int) $state['state_version'] + 1, [], aborted: true);
+
+        // Guardamos lo jugado hasta el aborto (reportes parciales).
+        $this->persist->handle($pin);
 
         Game::whereKey($state['game_id'])->update(['status' => 'aborted', 'ended_at' => now()]);
         $this->repo->destroy($pin);

@@ -45,6 +45,7 @@ class CreateGame
             'questions_total' => (string) count($snapshot['questions']),
             'current_index' => '-1',
             'locked' => '0',
+            'last_activity' => (string) (int) (microtime(true) * 1000),
         ]);
 
         return ['game' => $game, 'pin' => $pin];

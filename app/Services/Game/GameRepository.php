@@ -73,6 +73,15 @@ class GameRepository
         }
     }
 
+    /**
+     * Marca actividad reciente (ms). Lo usa el barrido de salas abandonadas
+     * para distinguir una sala viva de una olvidada.
+     */
+    public function touchActivity(string $pin): void
+    {
+        Redis::hset("game:$pin", 'last_activity', (string) (int) (microtime(true) * 1000));
+    }
+
     /* ---------------------------- Jugadores ---------------------------- */
 
     public function addPlayer(string $pin, string $uuid, string $nickname, string $normalized): void

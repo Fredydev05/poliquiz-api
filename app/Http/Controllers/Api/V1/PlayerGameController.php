@@ -63,12 +63,31 @@ class PlayerGameController extends Controller
         $answered = $index >= 0
             && ($this->repo->answers($pin, $index)[$player->uuid] ?? null) !== null;
 
+        // Si reconecta EN plena pregunta, mandamos el enunciado y opciones
+        // SIN las correctas (anti-trampa), para re-pintar el control de respuesta.
+        $question = null;
+        if ($state['state'] === 'question' && $index >= 0) {
+            $q = $this->repo->snapshot($pin)['questions'][$index] ?? null;
+            if ($q !== null) {
+                $question = [
+                    'kind' => $q['kind'],
+                    'title' => $q['title'],
+                    'image_url' => $q['image_url'] ?? null,
+                    'time_limit' => $q['time_limit'],
+                    'points_mode' => $q['points_mode'],
+                    'options' => array_map(fn ($o) => ['id' => $o['id'], 'text' => $o['text']], $q['options']),
+                ];
+            }
+        }
+
         return response()->json([
             'state' => $state['state'],
             'state_version' => (int) $state['state_version'],
             'locked' => ($state['locked'] ?? '0') === '1',
             'quiz_title' => $state['quiz_title'] ?? '',
             'current_index' => $index,
+            'questions_total' => (int) ($state['questions_total'] ?? 0),
+            'question' => $question,
             'question_uuid' => $state['question_uuid'] ?? null,
             'ends_at_ms' => isset($state['ends_at']) ? (int) $state['ends_at'] : null,
             'server_now_ms' => (int) (microtime(true) * 1000),

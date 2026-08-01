@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\GameController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\PlayerGameController;
 use App\Http\Controllers\Api\V1\QuizController;
+use App\Http\Controllers\Api\V1\ReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,6 +36,12 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('quizzes', QuizController::class);
         Route::post('/quizzes/{quiz}/duplicate', [QuizController::class, 'duplicate']);
         Route::post('/media', [MediaController::class, 'store'])->middleware('throttle:30,1');
+
+        // ---- Reportes post-partida ----
+        Route::get('/reports/games', [ReportController::class, 'index']);
+        Route::get('/reports/games/{game}', [ReportController::class, 'show']);
+        Route::get('/reports/games/{game}/questions', [ReportController::class, 'questions']);
+        Route::get('/reports/games/{game}/players', [ReportController::class, 'players']);
 
         // ---- Partidas: acciones del anfitrión ----
         Route::post('/games', [GameController::class, 'store']);

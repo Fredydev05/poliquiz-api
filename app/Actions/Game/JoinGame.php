@@ -47,6 +47,7 @@ class JoinGame
 
         $this->repo->addPlayer($pin, $uuid, $nickname, $normalized);
         $this->repo->createSession($token, $pin, $uuid);
+        $this->repo->touchActivity($pin);
 
         return [
             'player_token' => $token,

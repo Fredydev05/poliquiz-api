@@ -18,6 +18,10 @@ return [
     // Countdown de "preparados" antes de cada pregunta (segundos).
     'get_ready_seconds' => 3,
 
+    // Una sala sin actividad por más de esto se considera abandonada y se
+    // cierra sola (el barrido corre cada 5 min).
+    'abandoned_after' => (int) env('POLIQUIZ_ABANDONED_AFTER', 900), // 15 min
+
     // Margen de gracia de red al validar respuestas tardías (ms).
     'answer_grace_ms' => 300,
 
