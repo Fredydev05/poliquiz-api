@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   pgsql:
     image: postgres:16-alpine
@@ -48,7 +46,87 @@ services:
       timeout: 5s
       retries: 10
 
+  # ────────────────────────────────────────────────────────────────────────
+  # App: mismo build para los 4 servicios de abajo, solo cambia el `command`.
+  # Código montado como bind mount (hot-reload, y .env/vendor quedan visibles
+  # también en el host). "setup" corre una vez y deja todo listo antes de
+  # que los otros tres arranquen.
+  # ────────────────────────────────────────────────────────────────────────
+  setup:
+    build: .
+    image: poliquiz-api:local
+    container_name: poliquiz_setup
+    volumes:
+      - .:/var/www/html
+    environment: &app_env
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      # Host que usa el backend para las llamadas HTTP salientes al publicar
+      # eventos WS (broadcasting.php → connections.reverb.options.host).
+      # Tiene que ser el nombre del servicio "reverb", no localhost.
+      REVERB_HOST: reverb
+    depends_on:
+      pgsql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "docker/setup.sh"]
+
+  api:
+    build: .
+    image: poliquiz-api:local
+    container_name: poliquiz_api
+    volumes:
+      - .:/var/www/html
+    environment: *app_env
+    ports:
+      - "8000:8000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  reverb:
+    build: .
+    image: poliquiz-api:local
+    container_name: poliquiz_reverb
+    volumes:
+      - .:/var/www/html
+    environment: *app_env
+    ports:
+      - "8080:8080"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+
+  queue:
+    build: .
+    image: poliquiz-api:local
+    container_name: poliquiz_queue
+    volumes:
+      - .:/var/www/html
+    environment: *app_env
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: php artisan queue:work --sleep=0.1 --tries=3
+
+  scheduler:
+    build: .
+    image: poliquiz-api:local
+    container_name: poliquiz_scheduler
+    volumes:
+      - .:/var/www/html
+    environment: *app_env
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    # Corre el scheduler de Laravel (poliquiz:expire-abandoned cada 5 min,
+    # ver routes/console.php) — así no hace falta acordarse de correrlo aparte.
+    command: php artisan schedule:work
+
 volumes:
   pgdata:
-  pgadmin_data:  # <-- Añadido para corregir el error de volumen no declarado
+  pgadmin_data:
   redisdata:
