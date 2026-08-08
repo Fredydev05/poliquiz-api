@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\GameReportListResource;
 use App\Models\Game;
 use App\Models\PlayerAnswer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use App\Http\Resources\GameReportListResource;
+use Illuminate\Support\Collection;
 
 /**
  * Reportes post-partida (plan §6). Solo el docente anfitrión puede verlos.
@@ -142,7 +143,7 @@ class ReportController extends Controller
     /**
      * Todas las respuestas del juego agrupadas por índice de pregunta.
      *
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, PlayerAnswer>>
+     * @return Collection<int, Collection<int, PlayerAnswer>>
      */
     private function answersByQuestion(Game $game)
     {

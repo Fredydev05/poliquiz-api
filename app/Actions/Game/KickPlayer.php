@@ -6,7 +6,6 @@ namespace App\Actions\Game;
 
 use App\Events\Game\PlayerKicked;
 use App\Services\Game\GameRepository;
-use App\Services\Players\NicknameValidator;
 use Illuminate\Support\Str;
 
 /** Expulsa a un jugador: sale del roster, su sesión muere y se avisa por WS. */
