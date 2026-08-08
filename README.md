@@ -47,11 +47,12 @@ tiempo, etc.) y **scheduler** (limpia salas abandonadas cada 5 min).
 
 ## 3 · Frontend (`poliquiz-web`)
 
-Este repo no está dockerizado — corre nativo con Node:
+Este repo no está dockerizado — corre nativo con Node y **pnpm** (`corepack enable`
+o `npm i -g pnpm` si no lo tenés):
 
 ```bash
 cd ../poliquiz-web
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -61,7 +62,7 @@ mismo valor en ambos repos**, sino el frontend no puede autenticar el canal de
 WebSockets.
 
 ```bash
-npm run dev -- --port 5180
+pnpm dev --port 5180
 ```
 
 ## 4 · Verificar que quedó bien

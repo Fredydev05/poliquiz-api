@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Players;
 
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Normaliza y valida apodos de jugadores: longitud, caracteres permitidos

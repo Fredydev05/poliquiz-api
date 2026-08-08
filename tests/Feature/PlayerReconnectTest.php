@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\CloseQuestionJob;
 use App\Jobs\StartQuestionJob;
+use App\Services\Game\GameRepository;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Redis;
 
@@ -71,7 +72,7 @@ it('invalidates the session once the room is destroyed', function () {
     // Fin de partida: destroy() borra la sala; el jugador ya vio el podio por
     // WS. Una reconexión tardía cae en 401 y el front lo lleva al login
     // (resume() trata 401 y 410 igual: limpia sesión y muestra el ingreso).
-    app(App\Services\Game\GameRepository::class)->destroy($pin);
+    app(GameRepository::class)->destroy($pin);
 
     jugar($tokens['J1'])->getJson("/api/v1/games/$pin/me")->assertUnauthorized();
 });

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\Game\CloseQuestion;
 use App\Events\Game\GameEnded;
 use App\Events\Game\GetReadyShown;
 use App\Events\Game\LeaderboardShown;
@@ -9,9 +10,11 @@ use App\Events\Game\QuestionEnded;
 use App\Events\Game\QuestionStarted;
 use App\Jobs\CloseQuestionJob;
 use App\Jobs\StartQuestionJob;
+use App\Models\Game;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\User;
+use App\Services\Game\GameRepository;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Redis;
@@ -146,12 +149,12 @@ it('is idempotent: a late CloseQuestionJob after early close is a no-op', functi
     jugar($tokens['J1'])->postJson("/api/v1/games/$pin/answers",
         ['question_index' => 0, 'question_uuid' => $uuid, 'selected' => [0]]);
     expect(Redis::hget("game:$pin", 'state'))->toBe('results');
-    $scoreTrasCierre = json_decode(Redis::hget("game:$pin:players", array_key_first(app(App\Services\Game\GameRepository::class)->players($pin))), true)['score'] ?? null;
+    $scoreTrasCierre = json_decode(Redis::hget("game:$pin:players", array_key_first(app(GameRepository::class)->players($pin))), true)['score'] ?? null;
 
     // El job por timeout llega tarde: no debe re-puntuar ni re-emitir.
-    app(App\Actions\Game\CloseQuestion::class)->handle($pin, $uuid);
+    app(CloseQuestion::class)->handle($pin, $uuid);
     Event::assertDispatchedTimes(QuestionEnded::class, 1);
-    $players = app(App\Services\Game\GameRepository::class)->players($pin);
+    $players = app(GameRepository::class)->players($pin);
     expect(array_values($players)[0]['score'])->toBe($scoreTrasCierre);
 });
 
@@ -187,5 +190,5 @@ it('advances results → leaderboard → question 2 → podium → ended', funct
     // podium → ended: fila permanente marcada y Redis desarmado.
     comoDocente($host)->postJson("/api/v1/games/$pin/next")->assertOk();
     expect(Redis::hgetall("game:$pin"))->toBe([])
-        ->and(App\Models\Game::where('pin', $pin)->first()->status)->toBe('ended');
+        ->and(Game::where('pin', $pin)->first()->status)->toBe('ended');
 });
