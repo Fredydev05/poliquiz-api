@@ -38,12 +38,17 @@ de no saltear:
 - `composer install` si falta `vendor/`
 - `php artisan key:generate` si falta `APP_KEY`
 - genera credenciales de Reverb (WebSockets) si faltan — son secretos únicos por instalación
+- agrega la config de MinIO al `.env` si falta (instalaciones previas a MinIO)
 - `php artisan migrate`
 - `php artisan storage:link`
 
+En paralelo, un contenedor `minio_setup` crea el bucket de multimedia y lo deja de
+lectura pública (idempotente).
+
 Después arrancan los servicios de siempre, cada uno en su propio contenedor: **api**
 (REST, `:8000`), **reverb** (WebSockets, `:8080`), **queue** (cierra preguntas por
-tiempo, etc.) y **scheduler** (limpia salas abandonadas cada 5 min).
+tiempo, etc.), **scheduler** (limpia salas abandonadas cada 5 min) y **minio**
+(almacenamiento de imágenes S3-compatible, API en `:9000` y consola en `:9001`).
 
 ## 3 · Frontend (`poliquiz-web`)
 
@@ -97,7 +102,13 @@ Postgres. No hace falta nada extra: cada test limpia su estado en `beforeEach`.
   si tocás el `Dockerfile` o agregás una extensión nueva.
 - **pgAdmin**: hay una UI de administración de Postgres en `http://localhost:8090`
   (`admin@admin.com` / `admin123` por defecto).
+- **MinIO (multimedia)**: consola web en `http://localhost:9001`
+  (`poliquiz` / `poliquiz-secret-dev` por defecto). Las imágenes de los quiz se guardan
+  en el bucket público `poliquiz-media`. El código usa el disco `media`
+  (`config/filesystems.php`), así que pasar a S3/R2/Spaces en producción es solo cambiar
+  las variables `AWS_*` del `.env` — sin tocar código.
 - **Usuario de prueba**: no viene ninguno seedeado — registrate desde `/login` en el
   frontend.
 - **Producción**: este `docker-compose.yml` es para desarrollo (bind mount, Reverb sin
-  TLS, etc.). El setup de producción todavía no está armado (fase de deploy pendiente).
+  TLS, MinIO sin TLS, etc.). El setup de producción todavía no está armado (fase de
+  deploy pendiente).

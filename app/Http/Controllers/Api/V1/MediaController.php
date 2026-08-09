@@ -33,11 +33,11 @@ class MediaController extends Controller
             ->scaleDown(width: 1280);
 
         $path = 'quiz-media/'.Str::uuid().'.webp';
-        Storage::disk('public')->put($path, (string) $image->encode(new WebpEncoder(quality: 82)));
+        Storage::disk('media')->put($path, (string) $image->encode(new WebpEncoder(quality: 82)));
 
         return response()->json([
             'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            'url' => Storage::disk('media')->url($path),
         ], 201);
     }
 }

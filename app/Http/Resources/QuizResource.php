@@ -24,7 +24,7 @@ class QuizResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'visibility' => $this->visibility,
-            'cover_url' => $this->cover_path ? Storage::disk('public')->url($this->cover_path) : null,
+            'cover_url' => $this->cover_path ? Storage::disk('media')->url($this->cover_path) : null,
             'questions_count' => $this->whenCounted('questions'),
             'updated_at' => $this->updated_at?->toIso8601String(),
             'is_mine' => $this->user_id === $request->user()?->id,
@@ -35,7 +35,7 @@ class QuizResource extends JsonResource
                 'time_limit' => $q->time_limit,
                 'points_mode' => $q->points_mode->value,
                 'image_path' => $q->image_path,
-                'image_url' => $q->image_path ? Storage::disk('public')->url($q->image_path) : null,
+                'image_url' => $q->image_path ? Storage::disk('media')->url($q->image_path) : null,
                 'options' => $q->options->map(fn ($o) => [
                     'text' => $o->text,
                     'is_correct' => $o->is_correct,
