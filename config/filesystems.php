@@ -60,6 +60,32 @@ return [
             'report' => false,
         ],
 
+        // Almacenamiento de multimedia (imágenes de preguntas y portadas).
+        // S3-compatible: MinIO en desarrollo, y en producción cualquier proveedor
+        // (S3, R2, Spaces) cambiando solo el .env — el código nunca se entera.
+        //
+        // Bucket PÚBLICO a propósito: las imágenes de un quiz no son secretas y
+        // CreateGame hornea la URL dentro del snapshot de la partida en Redis;
+        // una URL firmada que expira rompería las imágenes a mitad de juego.
+        //
+        // 'endpoint' es la dirección interna (contenedor→MinIO) que usa el SDK
+        // para subir; 'url' es la dirección PÚBLICA que ve el navegador del
+        // estudiante y la que devuelve Storage::url(). Son distintas a propósito:
+        // el navegador no puede resolver el hostname de la red de Docker.
+        'media' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+            'bucket' => env('AWS_BUCKET', 'poliquiz-media'),
+            'url' => env('AWS_URL'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', true),
+            'visibility' => 'public',
+            'throw' => true,  // que una subida fallida sea un error real, no un null silencioso
+            'report' => false,
+        ],
+
     ],
 
     /*

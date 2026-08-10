@@ -65,7 +65,7 @@ class CreateGame
                 'title' => $q->title,
                 'time_limit' => $q->time_limit,
                 'points_mode' => $q->points_mode->value,
-                'image_url' => $q->image_path ? Storage::disk('public')->url($q->image_path) : null,
+                'image_url' => $q->image_path ? Storage::disk('media')->url($q->image_path) : null,
                 'options' => $q->options->map(fn ($o, $i) => [
                     'id' => $i,
                     'text' => $o->text,

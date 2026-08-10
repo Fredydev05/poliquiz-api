@@ -27,6 +27,37 @@ sed -i "s/^DB_HOST=.*/DB_HOST=pgsql/" .env
 sed -i "s/^REDIS_HOST=.*/REDIS_HOST=redis/" .env
 sed -i "s/^REVERB_HOST=.*/REVERB_HOST=\"reverb\"/" .env
 
+# Config de MinIO (almacenamiento de multimedia). En un .env fresco ya viene de
+# .env.example; esto es para .env de instalaciones previas a MinIO — se agrega
+# solo si falta. Tiene que estar en el archivo por el mismo motivo que DB_HOST:
+# el proceso hijo de "artisan serve" lee del .env, no del entorno del contenedor.
+if ! grep -q '^AWS_ENDPOINT=' .env; then
+  echo "→ Agregando config de MinIO al .env"
+  cat >> .env <<'EOF'
+
+# Almacenamiento de multimedia (MinIO en dev, S3-compatible) — ver docker-compose.yml
+AWS_ACCESS_KEY_ID=poliquiz
+AWS_SECRET_ACCESS_KEY=poliquiz-secret-dev
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=poliquiz-media
+AWS_USE_PATH_STYLE_ENDPOINT=true
+AWS_ENDPOINT=http://minio:9000
+AWS_URL=http://localhost:9000/poliquiz-media
+EOF
+fi
+
+# Config del asistente de IA (Groq). La key la completa el docente a mano.
+if ! grep -q '^GROQ_API_KEY=' .env; then
+  echo "→ Agregando config del asistente de IA al .env (falta pegar GROQ_API_KEY)"
+  cat >> .env <<'EOF'
+
+# Asistente de IA — conseguí tu key gratis en https://console.groq.com/keys
+AI_PROVIDER=groq
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+EOF
+fi
+
 if ! grep -q '^APP_KEY=base64' .env; then
   echo "→ Generando APP_KEY"
   php artisan key:generate --force

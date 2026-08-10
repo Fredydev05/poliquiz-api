@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    /*
+    | Asistente de IA
+    */
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+        'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'timeout' => (int) env('GROQ_TIMEOUT', 60),
+    ],
+
+    'ai_assistant' => [
+        'provider' => env('AI_PROVIDER', 'groq'),
+        // Tope de preguntas que la IA puede generar
+        'max_questions' => (int) env('AI_MAX_QUESTIONS', 10),
+    ],
+
 ];
