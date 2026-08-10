@@ -107,6 +107,11 @@ Postgres. No hace falta nada extra: cada test limpia su estado en `beforeEach`.
   en el bucket público `poliquiz-media`. El código usa el disco `media`
   (`config/filesystems.php`), así que pasar a S3/R2/Spaces en producción es solo cambiar
   las variables `AWS_*` del `.env` — sin tocar código.
+- **Asistente de IA**: el editor tiene un botón "Asistente IA" que genera y mejora
+  preguntas. Usa Groq (gratis) por defecto — conseguí tu key en
+  https://console.groq.com/keys y pegala en `GROQ_API_KEY` del `.env` (después
+  `docker compose restart api queue`). Sin key, el asistente responde con un aviso de
+  "no disponible". Cambiar de proveedor es solo tocar `AI_PROVIDER` + su bloque de config.
 - **Usuario de prueba**: no viene ninguno seedeado — registrate desde `/login` en el
   frontend.
 - **Producción**: este `docker-compose.yml` es para desarrollo (bind mount, Reverb sin

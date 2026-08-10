@@ -46,6 +46,18 @@ AWS_URL=http://localhost:9000/poliquiz-media
 EOF
 fi
 
+# Config del asistente de IA (Groq). La key la completa el docente a mano.
+if ! grep -q '^GROQ_API_KEY=' .env; then
+  echo "→ Agregando config del asistente de IA al .env (falta pegar GROQ_API_KEY)"
+  cat >> .env <<'EOF'
+
+# Asistente de IA — conseguí tu key gratis en https://console.groq.com/keys
+AI_PROVIDER=groq
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+EOF
+fi
+
 if ! grep -q '^APP_KEY=base64' .env; then
   echo "→ Generando APP_KEY"
   php artisan key:generate --force
