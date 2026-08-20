@@ -46,10 +46,10 @@ class GameController extends Controller
         $state = $this->requireHostedGame($request, $pin);
         $index = (int) $state['current_index'];
 
-        // Si hay una pregunta en curso o revelada, va COMPLETA (el host sí
-        // puede ver las correctas: es su proyección).
+        // Si hay una pregunta/diapositiva en curso o revelada, va COMPLETA (el
+        // host sí puede ver las correctas y el cuerpo de la slide: es su proyección).
         $question = null;
-        if ($index >= 0 && in_array($state['state'], ['get_ready', 'question', 'results'], true)) {
+        if ($index >= 0 && in_array($state['state'], ['get_ready', 'question', 'results', 'slide'], true)) {
             $question = $this->repo->snapshot($pin)['questions'][$index] ?? null;
         }
 

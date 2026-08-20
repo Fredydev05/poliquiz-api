@@ -121,11 +121,11 @@ it('closes early when everyone answered and scores correctly', function () {
     // Todos respondieron → cierre inmediato sin esperar el job.
     expect(Redis::hget("game:$pin", 'state'))->toBe('results');
     Event::assertDispatched(QuestionEnded::class, function (QuestionEnded $e) {
-        $with = $e->broadcastWith();
+        $reveal = $e->broadcastWith()['reveal'];
 
-        return $with['correct_option_ids'] === [0]
-            && collect($with['distribution'])->firstWhere('option_id', 0)['count'] === 1
-            && collect($with['distribution'])->firstWhere('option_id', 1)['count'] === 1;
+        return $reveal['correct_option_ids'] === [0]
+            && collect($reveal['distribution'])->firstWhere('option_id', 0)['count'] === 1
+            && collect($reveal['distribution'])->firstWhere('option_id', 1)['count'] === 1;
     });
 
     // Puntos: J1 entre 500 y 1000, J2 exactamente 0.

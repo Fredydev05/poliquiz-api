@@ -5,17 +5,20 @@ declare(strict_types=1);
 namespace App\Events\Game;
 
 /**
- * La pregunta cerró: se revelan las correctas y la distribución de votos.
- * Cada jugador compara su elección local y consulta /me para sus puntos.
+ * La pregunta cerró: se revela el resultado. El payload `reveal` es específico
+ * del tipo (options | text | order) y trae TODO lo que el host necesita para
+ * pintar los resultados. Cada jugador consulta /me para sus puntos.
  */
 class QuestionEnded extends GameBroadcastEvent
 {
+    /**
+     * @param  array<string, mixed>  $reveal  {kind, ...} según el tipo de pregunta
+     */
     public function __construct(
         string $pin,
         public readonly int $stateVersion,
         public readonly int $index,
-        public readonly array $correctOptionIds,
-        public readonly array $distribution, // [{option_id, count}]
+        public readonly array $reveal,
     ) {
         parent::__construct($pin);
     }
@@ -25,8 +28,7 @@ class QuestionEnded extends GameBroadcastEvent
         return [
             'state_version' => $this->stateVersion,
             'index' => $this->index,
-            'correct_option_ids' => $this->correctOptionIds,
-            'distribution' => $this->distribution,
+            'reveal' => $this->reveal,
         ];
     }
 }

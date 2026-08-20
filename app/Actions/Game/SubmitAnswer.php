@@ -6,24 +6,30 @@ namespace App\Actions\Game;
 
 use App\Auth\GuestPlayer;
 use App\Enums\GameState;
+use App\Enums\QuestionKind;
 use App\Events\Game\AnswerReceived;
 use App\Exceptions\GameException;
 use App\Services\Game\GameRepository;
+use App\Services\Game\QuestionTypes\QuestionTypeResolver;
 
 /**
  * Registra la respuesta de un jugador con validación server-side completa
  * (plan §6): estado, pregunta vigente, ventana de tiempo y unicidad.
  * El tiempo de respuesta se mide con el reloj DEL SERVIDOR.
+ *
+ * La forma de la respuesta (opciones, texto, orden) la valida la estrategia
+ * del tipo de pregunta — este action solo hace los controles comunes.
  */
 class SubmitAnswer
 {
     public function __construct(
         private readonly GameRepository $repo,
         private readonly CloseQuestion $closeQuestion,
+        private readonly QuestionTypeResolver $types,
     ) {}
 
-    /** @param  int[]  $selected  ids de opciones elegidas */
-    public function handle(GuestPlayer $player, string $pin, int $questionIndex, string $questionUuid, array $selected): void
+    /** @param  array<string, mixed>  $payload  respuesta cruda del jugador (según tipo) */
+    public function handle(GuestPlayer $player, string $pin, int $questionIndex, string $questionUuid, array $payload): void
     {
         $state = $this->repo->getState($pin) ?? throw GameException::pinNotFound();
 
@@ -40,16 +46,14 @@ class SubmitAnswer
             throw new GameException('TIME_EXPIRED', 'El tiempo de esta pregunta ya terminó.', 422);
         }
 
-        // Las opciones deben existir en la pregunta vigente.
+        // La estrategia del tipo valida y normaliza la respuesta (ids de opción,
+        // texto o un orden), y lanza GameException si es inválida.
         $question = $this->repo->snapshot($pin)['questions'][$questionIndex];
-        $validIds = array_map(fn (array $o) => $o['id'], $question['options']);
-        $selected = array_values(array_unique(array_map(intval(...), $selected)));
-        if ($selected === [] || array_diff($selected, $validIds) !== []) {
-            throw new GameException('INVALID_OPTIONS', 'Opciones inválidas para esta pregunta.', 422);
-        }
+        $answerFields = $this->types->for(QuestionKind::from($question['kind']))
+            ->normalizeAnswer($payload, $question);
 
         $recorded = $this->repo->recordAnswer($pin, $questionIndex, $player->uuid, [
-            'selected' => $selected,
+            ...$answerFields,
             'received_at' => $nowMs,
             'response_ms' => max(0, $nowMs - (int) $state['question_started_at']),
         ]);

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "poliquiz-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/fredy/Documents/development/poliquiz-web && npm run dev"],
+      "port": 5173
+    }
+  ]
+}

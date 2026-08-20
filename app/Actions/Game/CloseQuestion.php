@@ -6,9 +6,11 @@ namespace App\Actions\Game;
 
 use App\Enums\GameState;
 use App\Enums\PointsMode;
+use App\Enums\QuestionKind;
 use App\Events\Game\QuestionEnded;
 use App\Services\Game\GameRepository;
 use App\Services\Game\GameStateMachine;
+use App\Services\Game\QuestionTypes\QuestionTypeResolver;
 use App\Services\Scoring\ScoreCalculator;
 
 /**
@@ -25,6 +27,7 @@ class CloseQuestion
         private readonly GameRepository $repo,
         private readonly GameStateMachine $machine,
         private readonly ScoreCalculator $calculator,
+        private readonly QuestionTypeResolver $types,
     ) {}
 
     public function handle(string $pin, string $questionUuid): void
@@ -34,6 +37,15 @@ class CloseQuestion
             return; // pregunta vieja o sala destruida: no-op
         }
 
+        // Resolvemos todo lo del tipo ANTES de tomar el candado: si algo acá
+        // fallara, el estado sigue en 'question' y el reintento puede cerrar
+        // (no quedaría a medio camino, con el evento perdido).
+        $index = (int) $state['current_index'];
+        $question = $this->repo->snapshot($pin)['questions'][$index];
+        $timeLimitMs = $question['time_limit'] * 1000;
+        $mode = PointsMode::from($question['points_mode']);
+        $type = $this->types->for(QuestionKind::from($question['kind']));
+
         // La transición atómica ES el candado de idempotencia: el segundo
         // cierre encuentra state=results y tryTransition devuelve false.
         $version = $this->machine->tryTransition($pin, GameState::Question, GameState::Results);
@@ -41,36 +53,19 @@ class CloseQuestion
             return;
         }
 
-        $index = (int) $state['current_index'];
-        $question = $this->repo->snapshot($pin)['questions'][$index];
-        $timeLimitMs = $question['time_limit'] * 1000;
-        $mode = PointsMode::from($question['points_mode']);
-
-        $correctIds = array_values(array_map(
-            fn (array $o) => $o['id'],
-            array_filter($question['options'], fn (array $o) => $o['is_correct']),
-        ));
-
         $answers = $this->repo->answers($pin, $index);
-        $distribution = [];
 
-        // Puntúa a TODOS los jugadores del roster.
+        // Puntúa a TODOS los jugadores del roster. La estrategia del tipo decide
+        // qué tan correcta fue cada respuesta (ratio 0..1); el resto es común.
         foreach ($this->repo->players($pin) as $uuid => $player) {
             $answer = $answers[$uuid] ?? null;
 
-            $isCorrect = false;
-            if ($answer !== null) {
-                $selected = array_map(intval(...), $answer['selected']);
-                sort($selected);
-                $isCorrect = $selected === $correctIds;
-
-                foreach ($selected as $optionId) {
-                    $distribution[$optionId] = ($distribution[$optionId] ?? 0) + 1;
-                }
-            }
+            ['ratio' => $ratio, 'correct' => $isCorrect] = $answer !== null
+                ? $type->grade($answer, $question)
+                : ['ratio' => 0.0, 'correct' => false];
 
             ['points' => $points, 'streak' => $streak] = $this->calculator->score(
-                $isCorrect,
+                $ratio,
                 $answer['response_ms'] ?? $timeLimitMs,
                 $timeLimitMs,
                 $mode,
@@ -95,12 +90,6 @@ class CloseQuestion
             }
         }
 
-        // Distribución completa: opciones sin votos van con 0.
-        $fullDistribution = array_map(
-            fn (array $o) => ['option_id' => $o['id'], 'count' => $distribution[$o['id']] ?? 0],
-            $question['options'],
-        );
-
-        QuestionEnded::dispatch($pin, $version, $index, $correctIds, $fullDistribution);
+        QuestionEnded::dispatch($pin, $version, $index, $type->reveal($answers, $question));
     }
 }

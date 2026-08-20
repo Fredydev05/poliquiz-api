@@ -21,32 +21,40 @@ class ScoreCalculator
     private const STREAK_BONUS_CAP = 500;
 
     /**
+     * @param  float  $ratio  qué tan correcta fue la respuesta, 0..1. Binario en
+     *                        la mayoría de tipos (0 o 1); parcial en puzzle
+     *                        (piezas en su lugar / total). La racha SOLO sigue
+     *                        con acierto completo (ratio = 1).
      * @param  int  $streakBefore  racha ANTES de esta pregunta
      * @return array{points:int, streak:int} puntos totales y racha resultante
      */
     public function score(
-        bool $isCorrect,
+        float $ratio,
         int $responseMs,
         int $timeLimitMs,
         PointsMode $mode,
         int $streakBefore,
     ): array {
-        if (! $isCorrect) {
+        $ratio = min(1.0, max(0.0, $ratio));
+        if ($ratio <= 0.0) {
             return ['points' => 0, 'streak' => 0]; // la racha se corta
         }
 
-        $streak = $streakBefore + 1;
+        // La racha solo avanza con acierto COMPLETO; un parcial suma puntos
+        // pero no continúa la racha.
+        $streak = $ratio >= 1.0 ? $streakBefore + 1 : 0;
 
         if ($mode === PointsMode::None) {
             return ['points' => 0, 'streak' => $streak];
         }
 
         // Velocidad: responder al instante vale 1000, en el límite vale 500.
-        $ratio = min(1.0, max(0.0, $responseMs / max(1, $timeLimitMs)));
-        $base = (int) round((1 - $ratio / 2) * self::BASE_MAX);
+        $speed = min(1.0, max(0.0, $responseMs / max(1, $timeLimitMs)));
+        $base = (int) round((1 - $speed / 2) * self::BASE_MAX * $ratio);
 
-        // Bonus de racha: aplica desde la 2ª correcta consecutiva.
-        $bonus = min(($streak - 1) * self::STREAK_BONUS_STEP, self::STREAK_BONUS_CAP);
+        // Bonus de racha: aplica desde la 2ª correcta consecutiva (solo si la
+        // racha sigue viva, o sea con acierto completo).
+        $bonus = $streak >= 1 ? min(($streak - 1) * self::STREAK_BONUS_STEP, self::STREAK_BONUS_CAP) : 0;
 
         return [
             'points' => $base * $mode->multiplier() + $bonus,

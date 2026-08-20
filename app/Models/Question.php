@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['position', 'kind', 'title', 'time_limit', 'points_mode', 'image_path'])]
+#[Fillable(['position', 'kind', 'title', 'body', 'time_limit', 'points_mode', 'image_path'])]
 class Question extends Model
 {
     /** @use HasFactory<QuestionFactory> */

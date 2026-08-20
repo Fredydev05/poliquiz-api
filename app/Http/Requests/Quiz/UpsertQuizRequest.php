@@ -30,11 +30,14 @@ class UpsertQuizRequest extends FormRequest
             'questions' => ['present', 'array', 'max:100'],
             'questions.*.kind' => ['required', Rule::enum(QuestionKind::class)],
             'questions.*.title' => ['required', 'string', 'max:250'],
-            'questions.*.time_limit' => ['required', 'integer', Rule::in(self::TIME_LIMITS)],
+            // time_limit y options son nullable acá porque la diapositiva no los
+            // tiene; la obligatoriedad por tipo se valida en after().
+            'questions.*.time_limit' => ['nullable', 'integer', Rule::in(self::TIME_LIMITS)],
             'questions.*.points_mode' => ['sometimes', Rule::enum(PointsMode::class)],
             'questions.*.image_path' => ['nullable', 'string', 'max:255'],
+            'questions.*.body' => ['nullable', 'string', 'max:2000'], // cuerpo de la diapositiva
 
-            'questions.*.options' => ['required', 'array', 'min:2', 'max:4'],
+            'questions.*.options' => ['nullable', 'array', 'max:4'],
             'questions.*.options.*.text' => ['required', 'string', 'max:120'],
             'questions.*.options.*.is_correct' => ['required', 'boolean'],
         ];
@@ -52,6 +55,20 @@ class UpsertQuizRequest extends FormRequest
                     $kind = QuestionKind::tryFrom($question['kind'] ?? '');
                     if ($kind === null) {
                         continue; // ya falló Rule::enum
+                    }
+
+                    // Diapositiva: no lleva opciones ni tiempo, pero necesita cuerpo.
+                    if ($kind === QuestionKind::Slide) {
+                        if (trim((string) ($question['body'] ?? '')) === '') {
+                            $validator->errors()->add("questions.$i.body", 'La diapositiva necesita un texto.');
+                        }
+
+                        continue;
+                    }
+
+                    // Preguntas interactivas: el tiempo es obligatorio.
+                    if (! in_array($question['time_limit'] ?? null, self::TIME_LIMITS, true)) {
+                        $validator->errors()->add("questions.$i.time_limit", 'El tiempo por pregunta es obligatorio.');
                     }
 
                     $options = $question['options'] ?? [];

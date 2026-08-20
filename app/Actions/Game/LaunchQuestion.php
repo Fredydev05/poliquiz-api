@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Actions\Game;
 
 use App\Enums\GameState;
+use App\Enums\QuestionKind;
 use App\Events\Game\GetReadyShown;
 use App\Events\Game\QuestionStarted;
 use App\Jobs\CloseQuestionJob;
 use App\Jobs\StartQuestionJob;
 use App\Services\Game\GameRepository;
 use App\Services\Game\GameStateMachine;
+use App\Services\Game\QuestionTypes\QuestionTypeResolver;
 use Illuminate\Support\Str;
 
 /**
@@ -25,6 +27,7 @@ class LaunchQuestion
     public function __construct(
         private readonly GameRepository $repo,
         private readonly GameStateMachine $machine,
+        private readonly QuestionTypeResolver $types,
     ) {}
 
     /** Paso 1 — entra en get_ready (desde lobby o leaderboard). */
@@ -38,8 +41,11 @@ class LaunchQuestion
             'question_uuid' => $questionUuid,
         ]);
 
+        // El reveal ya muestra el enunciado + imagen (sin opciones): las manda
+        // este evento para que host y jugadores lo pinten durante el countdown.
+        $question = $this->repo->snapshot($pin)['questions'][$index];
         $total = (int) $this->repo->getState($pin)['questions_total'];
-        GetReadyShown::dispatch($pin, $version, $index, $total, $readyMs);
+        GetReadyShown::dispatch($pin, $version, $index, $total, $readyMs, $question['title'], $question['image_url'] ?? null);
 
         StartQuestionJob::dispatch($pin, $questionUuid)
             ->delay(now()->addMilliseconds($readyMs));
@@ -71,13 +77,17 @@ class LaunchQuestion
             return;
         }
 
+        // La estrategia arma la vista del jugador (SIN datos de la correcta: en
+        // "escribe la respuesta" ni siquiera van las opciones).
+        $playerView = $this->types->for(QuestionKind::from($question['kind']))->playerView($question);
+
         QuestionStarted::dispatch(
             $pin,
             $version,
             $index,
             (int) $state['questions_total'],
             $questionUuid,
-            $question,
+            $playerView,
             $endsAtMs,
         );
 

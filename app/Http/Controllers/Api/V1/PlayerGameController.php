@@ -6,15 +6,20 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Game\JoinGame;
 use App\Actions\Game\SubmitAnswer;
+use App\Enums\QuestionKind;
 use App\Http\Controllers\Controller;
 use App\Services\Game\GameRepository;
+use App\Services\Game\QuestionTypes\QuestionTypeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /** Acciones del JUGADOR invitado (join es público; el resto usa guard 'player'). */
 class PlayerGameController extends Controller
 {
-    public function __construct(private readonly GameRepository $repo) {}
+    public function __construct(
+        private readonly GameRepository $repo,
+        private readonly QuestionTypeResolver $types,
+    ) {}
 
     public function join(Request $request, string $pin, JoinGame $action): JsonResponse
     {
@@ -29,14 +34,23 @@ class PlayerGameController extends Controller
         $player = $request->user('player');
         abort_if($player->pin !== $pin, 401);
 
+        // La forma del payload depende del tipo: 'selected' (opciones), 'text'
+        // (escribe la respuesta) u 'order' (rompecabezas). Acá validamos solo el
+        // sobre; la estrategia del tipo valida el contenido real.
         $data = $request->validate([
             'question_index' => ['required', 'integer', 'min:0'],
             'question_uuid' => ['required', 'uuid'],
-            'selected' => ['required', 'array', 'min:1', 'max:4'],
+            'selected' => ['nullable', 'array', 'max:4'],
             'selected.*' => ['integer', 'min:0'],
+            'text' => ['nullable', 'string', 'max:120'],
+            'order' => ['nullable', 'array', 'max:8'],
+            'order.*' => ['integer', 'min:0'],
         ]);
 
-        $action->handle($player, $pin, $data['question_index'], $data['question_uuid'], $data['selected']);
+        $action->handle(
+            $player, $pin, $data['question_index'], $data['question_uuid'],
+            $request->only(['selected', 'text', 'order']),
+        );
 
         // Los puntos NO se revelan hasta QuestionEnded (anti-spoiler).
         return response()->json(['received' => true]);
@@ -63,20 +77,13 @@ class PlayerGameController extends Controller
         $answered = $index >= 0
             && ($this->repo->answers($pin, $index)[$player->uuid] ?? null) !== null;
 
-        // Si reconecta EN plena pregunta, mandamos el enunciado y opciones
-        // SIN las correctas (anti-trampa), para re-pintar el control de respuesta.
+        // Si reconecta EN plena pregunta, mandamos la vista del jugador (la
+        // estrategia filtra las correctas; en "escribe" ni manda opciones).
         $question = null;
         if ($state['state'] === 'question' && $index >= 0) {
             $q = $this->repo->snapshot($pin)['questions'][$index] ?? null;
             if ($q !== null) {
-                $question = [
-                    'kind' => $q['kind'],
-                    'title' => $q['title'],
-                    'image_url' => $q['image_url'] ?? null,
-                    'time_limit' => $q['time_limit'],
-                    'points_mode' => $q['points_mode'],
-                    'options' => array_map(fn ($o) => ['id' => $o['id'], 'text' => $o['text']], $q['options']),
-                ];
+                $question = $this->types->for(QuestionKind::from($q['kind']))->playerView($q);
             }
         }
 

@@ -32,6 +32,7 @@ class QuizResource extends JsonResource
             'questions' => $this->whenLoaded('questions', fn () => $this->questions->map(fn ($q) => [
                 'kind' => $q->kind->value,
                 'title' => $q->title,
+                'body' => $q->body, // solo la diapositiva
                 'time_limit' => $q->time_limit,
                 'points_mode' => $q->points_mode->value,
                 'image_path' => $q->image_path,

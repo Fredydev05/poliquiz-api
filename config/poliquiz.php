@@ -15,8 +15,10 @@ return [
     // Límite de jugadores por sala (decisión del plan §10).
     'max_players' => (int) env('POLIQUIZ_MAX_PLAYERS', 100),
 
-    // Countdown de "preparados" antes de cada pregunta (segundos).
-    'get_ready_seconds' => 3,
+    // Fase de "reveal" antes de cada pregunta (segundos): se muestra el
+    // enunciado (sin opciones) para que los alumnos lean, y recién ahí aparecen
+    // las respuestas y arranca el timer. Global para todas las preguntas.
+    'get_ready_seconds' => 5,
 
     // Una sala sin actividad por más de esto se considera abandonada y se
     // cierra sola (el barrido corre cada 5 min).

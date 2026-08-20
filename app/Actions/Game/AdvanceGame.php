@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Game;
 
 use App\Enums\GameState;
+use App\Enums\QuestionKind;
 use App\Events\Game\GameEnded;
 use App\Events\Game\LeaderboardShown;
 use App\Exceptions\GameException;
@@ -25,6 +26,7 @@ class AdvanceGame
         private readonly GameRepository $repo,
         private readonly GameStateMachine $machine,
         private readonly LaunchQuestion $launcher,
+        private readonly ShowSlide $slideShower,
         private readonly PersistGameResults $persist,
     ) {}
 
@@ -38,7 +40,8 @@ class AdvanceGame
         match ($current) {
             GameState::Lobby => $this->start($pin),
             GameState::Results => $isLast ? $this->podium($pin) : $this->leaderboard($pin),
-            GameState::Leaderboard => $isLast ? $this->podium($pin) : $this->launcher->getReady($pin, GameState::Leaderboard, $index + 1),
+            GameState::Leaderboard => $this->goToItem($pin, GameState::Leaderboard, $index + 1),
+            GameState::Slide => $this->goToItem($pin, GameState::Slide, $index + 1),
             GameState::Podium => $this->end($pin),
             default => throw GameException::wrongState("(next no aplica en {$current->value})"),
         };
@@ -51,7 +54,28 @@ class AdvanceGame
         if ($this->repo->playersCount($pin) === 0) {
             throw new GameException('NO_PLAYERS', 'No hay jugadores en la sala todavía.', 422);
         }
-        $this->launcher->getReady($pin, GameState::Lobby, 0);
+        $this->goToItem($pin, GameState::Lobby, 0);
+    }
+
+    /**
+     * Avanza al ítem $index: si es una pregunta entra en get_ready; si es una
+     * diapositiva la proyecta; si ya no quedan ítems, va al podio.
+     */
+    private function goToItem(string $pin, GameState $from, int $index): void
+    {
+        if ($index >= (int) $this->repo->getState($pin)['questions_total']) {
+            $this->podium($pin);
+
+            return;
+        }
+
+        $kind = QuestionKind::from($this->repo->snapshot($pin)['questions'][$index]['kind']);
+
+        if ($kind->isInteractive()) {
+            $this->launcher->getReady($pin, $from, $index);
+        } else {
+            $this->slideShower->handle($pin, $from, $index);
+        }
     }
 
     private function leaderboard(string $pin): void

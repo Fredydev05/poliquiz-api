@@ -105,3 +105,24 @@ function comoDocente(User $user)
 
     return test()->actingAs($user);
 }
+
+/**
+ * Arma una sala con un quiz CUSTOM (el callback crea las preguntas) + N
+ * jugadores. Devuelve [host, pin, tokens]. Útil para probar tipos de pregunta
+ * específicos (slide, encuesta, escribe, puzzle).
+ */
+function salaCon(callable $armarQuiz, int $jugadores = 1): array
+{
+    $host = User::factory()->create();
+    $quiz = Quiz::factory()->for($host)->create();
+    $armarQuiz($quiz);
+
+    $pin = comoDocente($host)->postJson('/api/v1/games', ['quiz_id' => $quiz->id])->json('pin');
+
+    $tokens = [];
+    foreach (range(1, $jugadores) as $i) {
+        $tokens["J$i"] = test()->postJson("/api/v1/games/$pin/join", ['nickname' => "J$i"])->json('player_token');
+    }
+
+    return [$host, $pin, $tokens];
+}

@@ -37,13 +37,15 @@ class SaveQuizContent
                     'position' => $index,
                     'kind' => $q['kind'],
                     'title' => $q['title'],
-                    'time_limit' => $q['time_limit'],
+                    'body' => $q['body'] ?? null,            // solo la diapositiva
+                    'time_limit' => $q['time_limit'] ?? null, // la diapositiva no tiene
                     'points_mode' => $q['points_mode'] ?? 'standard',
                     'image_path' => $q['image_path'] ?? null,
                 ]);
 
+                // La diapositiva no tiene opciones.
                 $question->options()->createMany(
-                    collect($q['options'])->values()->map(fn (array $o, int $pos) => [
+                    collect($q['options'] ?? [])->values()->map(fn (array $o, int $pos) => [
                         'position' => $pos,
                         'text' => $o['text'],
                         'is_correct' => (bool) $o['is_correct'],
