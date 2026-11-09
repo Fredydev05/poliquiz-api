@@ -54,7 +54,7 @@ if ! grep -q '^GROQ_API_KEY=' .env; then
 # Asistente de IA — conseguí tu key gratis en https://console.groq.com/keys
 AI_PROVIDER=groq
 GROQ_API_KEY=
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 EOF
 fi
 
