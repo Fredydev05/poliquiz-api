@@ -17,6 +17,9 @@ final class GeneratedQuestionValidator
 {
     private const TIME_LIMITS = [5, 10, 20, 30, 60, 90, 120, 240];
 
+    /** Los únicos tipos que el prompt le permite generar a la IA (lista blanca). */
+    private const GENERATABLE = [QuestionKind::Quiz, QuestionKind::TrueFalse, QuestionKind::Multi];
+
     public function __construct(private readonly int $maxQuestions) {}
 
     /**
@@ -54,7 +57,9 @@ final class GeneratedQuestionValidator
         $title = trim((string) ($q['title'] ?? ''));
         $timeLimit = $q['time_limit'] ?? null;
 
-        if ($kind === null || $title === '' || mb_strlen($title) > 250) {
+        // Lista blanca: si el modelo inventa otro tipo (encuesta, diapositiva...)
+        // aunque el enum lo conozca, la pregunta se descarta.
+        if (! in_array($kind, self::GENERATABLE, true) || $title === '' || mb_strlen($title) > 250) {
             return null;
         }
         if (! in_array($timeLimit, self::TIME_LIMITS, true)) {
@@ -88,6 +93,9 @@ final class GeneratedQuestionValidator
 
         $options = [];
         foreach ($raw as $opt) {
+            if (! is_array($opt)) {
+                continue; // "options": ["a", "b"] u otra forma rota
+            }
             $text = trim((string) ($opt['text'] ?? ''));
             if ($text === '' || mb_strlen($text) > 120) {
                 continue; // opción vacía o gigante: se descarta
