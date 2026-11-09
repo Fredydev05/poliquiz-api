@@ -23,7 +23,7 @@ class DuplicateQuiz
 
             foreach ($quiz->questions()->with('options')->get() as $question) {
                 $newQuestion = $copy->questions()->create(
-                    $question->only(['position', 'kind', 'title', 'time_limit', 'points_mode', 'image_path'])
+                    $question->only(['position', 'kind', 'title', 'body', 'time_limit', 'points_mode', 'image_path'])
                 );
                 $newQuestion->options()->createMany(
                     $question->options->map(
