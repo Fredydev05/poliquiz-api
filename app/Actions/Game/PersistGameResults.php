@@ -6,6 +6,7 @@ namespace App\Actions\Game;
 
 use App\Models\GamePlayer;
 use App\Services\Game\GameRepository;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -58,7 +59,9 @@ class PersistGameResults
                 }
                 $answers[] = [
                     'question_index' => $i,
-                    'selected' => $a['selected'],
+                    // La forma depende del tipo: ids elegidos, el orden del
+                    // rompecabezas o [texto] en "escribe la respuesta".
+                    'selected' => $a['selected'] ?? $a['order'] ?? (isset($a['text']) ? [$a['text']] : []),
                     'response_ms' => $a['response_ms'],
                     'is_correct' => $a['is_correct'] ?? false,
                     'points' => $a['points'] ?? 0,
@@ -81,6 +84,16 @@ class PersistGameResults
         // Puntaje desc; a igualdad, gana quien acumuló menos tiempo.
         usort($rows, fn ($a, $b) => $b['score'] <=> $a['score'] ?: $a['total_ms'] <=> $b['total_ms']);
 
+        try {
+            $this->store($rows, $gameId);
+        } catch (UniqueConstraintViolationException) {
+            // Otro proceso persistió esta misma partida entre el exists() y
+            // acá: la transacción se revirtió entera y sus filas son válidas.
+        }
+    }
+
+    private function store(array $rows, string|int $gameId): void
+    {
         DB::transaction(function () use ($rows, $gameId): void {
             foreach ($rows as $rank => $row) {
                 $player = GamePlayer::create([

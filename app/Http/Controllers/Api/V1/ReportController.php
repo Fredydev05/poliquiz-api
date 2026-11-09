@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\QuestionKind;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\GameReportListResource;
 use App\Models\Game;
@@ -88,6 +89,9 @@ class ReportController extends Controller
         $result = collect($questions)->map(function (array $q, int $i) use ($answers) {
             $qa = $answers[$i] ?? collect();
             $answered = $qa->count();
+            // Solo en los tipos de opciones "selected" son ids elegidos; en
+            // rompecabezas es un orden y en "escribe" un texto: no hay conteo.
+            $porOpcion = QuestionKind::from($q['kind'])->answerShape() === 'options';
 
             return [
                 'index' => $i,
@@ -97,12 +101,14 @@ class ReportController extends Controller
                 'correct' => $qa->where('is_correct', true)->count(),
                 'accuracy' => $answered ? round($qa->where('is_correct', true)->count() / $answered * 100) : 0,
                 'avg_response_ms' => $answered ? (int) round($qa->avg('response_ms')) : null,
-                'options' => collect($q['options'])->map(fn (array $o) => [
+                'options' => collect($q['options'] ?? [])->map(fn (array $o) => [
                     'id' => $o['id'],
                     'text' => $o['text'],
                     'is_correct' => $o['is_correct'],
                     // Cuántos eligieron esta opción (una respuesta puede tener varias).
-                    'count' => $qa->filter(fn ($a) => in_array($o['id'], $a->selected, true))->count(),
+                    'count' => $porOpcion
+                        ? $qa->filter(fn ($a) => in_array($o['id'], $a->selected, true))->count()
+                        : null,
                 ])->values(),
             ];
         });
