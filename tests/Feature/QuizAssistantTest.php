@@ -124,10 +124,7 @@ it('drops invalid questions and keeps the valid ones', function () {
         'questions' => [
             preguntaGenerada(),
             preguntaGenerada(['time_limit' => 7]),          // tiempo inválido → se descarta
-            preguntaGenerada(['kind' => 'poll', 'options' => [ // tipo fuera de la lista blanca
-                ['text' => 'A', 'is_correct' => false],
-                ['text' => 'B', 'is_correct' => false],
-            ]]),
+            preguntaGenerada(['kind' => 'nube_magica']),     // tipo inexistente
             preguntaGenerada(['options' => ['A', 'B']]),     // opciones con forma rota
             preguntaGenerada(['options' => [                 // quiz con 0 correctas → se descarta
                 ['text' => 'A', 'is_correct' => false],
@@ -226,4 +223,42 @@ it('requires authentication', function () {
 
     $this->postJson("/api/v1/quizzes/{$quiz->id}/assistant", ['message' => 'hola'])
         ->assertUnauthorized();
+});
+
+it('generates every question type with its own rules', function () {
+    $host = User::factory()->create();
+    $quiz = Quiz::factory()->for($host)->create();
+
+    fakeProvider(guion('Te armé una clase completa.', [
+        'action' => 'generate',
+        'questions' => [
+            ['kind' => 'slide', 'title' => 'Intro', 'body' => 'Hoy: fotosíntesis', 'options' => []],
+            ['kind' => 'wordcloud', 'title' => '¿Qué sabés de las plantas?', 'time_limit' => 30, 'options' => []],
+            ['kind' => 'open', 'title' => '¿Para qué sirve la clorofila?', 'time_limit' => 60],
+            ['kind' => 'brainstorm', 'title' => 'Ideas para cuidar el ambiente', 'time_limit' => 60, 'options' => [['text' => 'x', 'is_correct' => true]]],
+            ['kind' => 'poll', 'title' => '¿Te gustó?', 'time_limit' => 20, 'options' => [   // la IA marcó una "correcta"
+                ['text' => 'Sí', 'is_correct' => true], ['text' => 'No', 'is_correct' => false]]],
+            ['kind' => 'short', 'title' => 'Gas que liberan', 'time_limit' => 20, 'options' => [
+                ['text' => 'Oxígeno', 'is_correct' => false], ['text' => 'O2', 'is_correct' => false]]],
+            ['kind' => 'puzzle', 'title' => 'Ordená las etapas', 'time_limit' => 30, 'options' => [
+                ['text' => 'Luz', 'is_correct' => true], ['text' => 'Agua', 'is_correct' => false], ['text' => 'Glucosa', 'is_correct' => false]]],
+            ['kind' => 'slide', 'title' => 'Sin cuerpo'],                       // inválida: falta body
+            ['kind' => 'wordcloud', 'title' => 'Sin tiempo', 'options' => []],  // inválida: falta time_limit
+        ],
+    ]));
+
+    $result = collect(eventos(comoDocente($host)
+        ->postJson("/api/v1/quizzes/{$quiz->id}/assistant", ['message' => 'armá una clase de fotosíntesis'])
+        ->streamedContent()))->firstWhere('type', 'result');
+    $q = collect($result['questions'])->keyBy('kind');
+
+    expect($result['questions'])->toHaveCount(7)
+        ->and($q['slide'])->toMatchArray(['body' => 'Hoy: fotosíntesis', 'options' => []])
+        ->and($q['slide'])->not->toHaveKey('time_limit')
+        ->and($q['wordcloud']['options'])->toBe([])
+        ->and($q['brainstorm']['options'])->toBe([])                         // se ignoran las que mandó
+        ->and(collect($q['poll']['options'])->pluck('is_correct')->all())->toBe([false, false])
+        ->and(collect($q['short']['options'])->pluck('is_correct')->all())->toBe([true, true])
+        ->and(collect($q['puzzle']['options'])->pluck('is_correct')->all())->toBe([false, false, false])
+        ->and(collect($q['puzzle']['options'])->pluck('text')->all())->toBe(['Luz', 'Agua', 'Glucosa']);
 });
