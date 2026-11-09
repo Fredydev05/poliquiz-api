@@ -113,6 +113,19 @@ it('allows viewing and duplicating public quizzes of others', function () {
         ->and($response->json('data.questions'))->toHaveCount(1);
 });
 
+it('keeps the slide body when duplicating a quiz', function () {
+    $user = User::factory()->create();
+    $quiz = Quiz::factory()->for($user)->create();
+    $quiz->questions()->create([
+        'position' => 0, 'kind' => 'slide', 'title' => 'Intro', 'body' => 'Bienvenidos', 'time_limit' => null,
+    ]);
+
+    $this->actingAs($user)->postJson("/api/v1/quizzes/{$quiz->id}/duplicate")
+        ->assertCreated()
+        ->assertJsonPath('data.questions.0.kind', 'slide')
+        ->assertJsonPath('data.questions.0.body', 'Bienvenidos');
+});
+
 it('soft deletes quizzes', function () {
     $user = User::factory()->create();
     $quiz = Quiz::factory()->for($user)->create();
