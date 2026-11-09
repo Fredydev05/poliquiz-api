@@ -36,21 +36,23 @@ class PlayerGameController extends Controller
         abort_if($player->pin !== $pin, 401);
 
         // La forma del payload depende del tipo: 'selected' (opciones), 'text'
-        // (escribe la respuesta) u 'order' (rompecabezas). Acá validamos solo el
+        // (escribe / nube / abierta), 'ideas' (lluvia de ideas) u 'order' (rompecabezas). Acá validamos solo el
         // sobre; la estrategia del tipo valida el contenido real.
         $data = $request->validate([
             'question_index' => ['required', 'integer', 'min:0'],
             'question_uuid' => ['required', 'uuid'],
             'selected' => ['nullable', 'array', 'max:4'],
             'selected.*' => ['integer', 'min:0'],
-            'text' => ['nullable', 'string', 'max:120'],
+            'text' => ['nullable', 'string', 'max:250'], // el largo exacto lo decide el tipo
+            'ideas' => ['nullable', 'array', 'max:3'],
+            'ideas.*' => ['nullable', 'string', 'max:60'],
             'order' => ['nullable', 'array', 'max:8'],
             'order.*' => ['integer', 'min:0'],
         ]);
 
         $action->handle(
             $player, $pin, $data['question_index'], $data['question_uuid'],
-            $request->only(['selected', 'text', 'order']),
+            $request->only(['selected', 'text', 'order', 'ideas']),
         );
 
         // Los puntos NO se revelan hasta QuestionEnded (anti-spoiler).

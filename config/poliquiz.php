@@ -27,6 +27,16 @@ return [
     // Margen de gracia de red al validar respuestas tardías (ms).
     'answer_grace_ms' => 300,
 
+    // Texto libre que se PROYECTA (nube, abierta, lluvia de ideas): las
+    // respuestas con alguna de estas palabras (completa, sin acentos, con o
+    // sin plural) no se muestran en pantalla.
+    'text_blocklist' => [
+        'puto', 'puta', 'mierda', 'pendejo', 'idiota', 'imbecil', 'estupido',
+        'boludo', 'pelotudo', 'forro', 'concha', 'pija', 'verga', 'culo',
+        'carajo', 'cojudo', 'mogolico', 'tarado', 'gil', 'chupala',
+        'fuck', 'shit', 'bitch', 'dick', 'ass',
+    ],
+
     // Nicknames: longitud y lista de bloqueo (subcadenas, sin acentos).
     'nickname' => [
         'min' => 2,
