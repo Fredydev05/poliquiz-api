@@ -17,8 +17,7 @@ final class GeneratedQuestionValidator
 {
     private const TIME_LIMITS = [5, 10, 20, 30, 60, 90, 120, 240];
 
-    /** Los únicos tipos que el prompt le permite generar a la IA (lista blanca). */
-    private const GENERATABLE = [QuestionKind::Quiz, QuestionKind::TrueFalse, QuestionKind::Multi];
+    private const MAX_BODY = 2000;
 
     public function __construct(private readonly int $maxQuestions) {}
 
@@ -55,18 +54,27 @@ final class GeneratedQuestionValidator
 
         $kind = QuestionKind::tryFrom((string) ($q['kind'] ?? ''));
         $title = trim((string) ($q['title'] ?? ''));
-        $timeLimit = $q['time_limit'] ?? null;
 
-        // Lista blanca: si el modelo inventa otro tipo (encuesta, diapositiva...)
-        // aunque el enum lo conozca, la pregunta se descarta.
-        if (! in_array($kind, self::GENERATABLE, true) || $title === '' || mb_strlen($title) > 250) {
+        if ($kind === null || $title === '' || mb_strlen($title) > 250) {
             return null;
         }
+
+        // Diapositiva: sin tiempo ni opciones, pero con un cuerpo que proyectar.
+        if ($kind === QuestionKind::Slide) {
+            $body = trim((string) ($q['body'] ?? ''));
+            if ($body === '' || mb_strlen($body) > self::MAX_BODY) {
+                return null;
+            }
+
+            return ['kind' => $kind->value, 'title' => $title, 'body' => $body, 'options' => []];
+        }
+
+        $timeLimit = $q['time_limit'] ?? null;
         if (! in_array($timeLimit, self::TIME_LIMITS, true)) {
             return null;
         }
 
-        $options = $this->validateOptions($q['options'] ?? null, $kind);
+        $options = $this->validateOptions($q['options'] ?? [], $kind);
         if ($options === null) {
             return null;
         }
@@ -87,6 +95,10 @@ final class GeneratedQuestionValidator
      */
     private function validateOptions($raw, QuestionKind $kind): ?array
     {
+        // Nube, abierta, ideas: no llevan opciones (si el modelo mandó, se ignoran).
+        if ($kind->optionRange()[1] === 0) {
+            return [];
+        }
         if (! is_array($raw)) {
             return null;
         }
@@ -106,6 +118,18 @@ final class GeneratedQuestionValidator
         [$minOpt, $maxOpt] = $kind->optionRange();
         if (count($options) < $minOpt || count($options) > $maxOpt) {
             return null;
+        }
+
+        // Tipos donde "correcta" no se elige: lo fijamos nosotros en vez de
+        // confiar en el modelo (la encuesta no tiene; en "escribe" todas son
+        // aceptadas; en el rompecabezas el orden es la respuesta).
+        $forced = match ($kind) {
+            QuestionKind::Poll, QuestionKind::Puzzle => false,
+            QuestionKind::Short => true,
+            default => null,
+        };
+        if ($forced !== null) {
+            $options = array_map(fn (array $o) => [...$o, 'is_correct' => $forced], $options);
         }
 
         $correct = count(array_filter($options, fn ($o) => $o['is_correct']));
