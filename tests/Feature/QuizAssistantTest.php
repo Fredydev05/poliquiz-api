@@ -124,6 +124,11 @@ it('drops invalid questions and keeps the valid ones', function () {
         'questions' => [
             preguntaGenerada(),
             preguntaGenerada(['time_limit' => 7]),          // tiempo inválido → se descarta
+            preguntaGenerada(['kind' => 'poll', 'options' => [ // tipo fuera de la lista blanca
+                ['text' => 'A', 'is_correct' => false],
+                ['text' => 'B', 'is_correct' => false],
+            ]]),
+            preguntaGenerada(['options' => ['A', 'B']]),     // opciones con forma rota
             preguntaGenerada(['options' => [                 // quiz con 0 correctas → se descarta
                 ['text' => 'A', 'is_correct' => false],
                 ['text' => 'B', 'is_correct' => false],
