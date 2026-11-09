@@ -26,6 +26,7 @@ function salaAbierta(): array
 it('keeps recently active games untouched', function () {
     [, $pin] = salaAbierta();
 
+    $this->travel(2)->minutes(); // el barrido ignora filas de menos de 1 min
     $this->artisan('poliquiz:expire-abandoned')->assertSuccessful();
 
     expect(Redis::hget("game:$pin", 'state'))->toBe('lobby')
@@ -39,6 +40,7 @@ it('aborts games with no recent activity', function () {
     $viejo = (int) (microtime(true) * 1000) - (config('poliquiz.abandoned_after') + 60) * 1000;
     Redis::hset("game:$pin", 'last_activity', (string) $viejo);
 
+    $this->travel(2)->minutes(); // el barrido ignora filas de menos de 1 min
     $this->artisan('poliquiz:expire-abandoned')->assertSuccessful();
 
     // Sala desarmada en Redis y fila marcada como abortada.
@@ -50,6 +52,7 @@ it('marks orphan games as aborted when their redis room already expired', functi
     [, $pin] = salaAbierta();
     Redis::del("game:$pin"); // el TTL ya limpió la sala, la fila quedó activa
 
+    $this->travel(2)->minutes(); // el barrido ignora filas de menos de 1 min
     $this->artisan('poliquiz:expire-abandoned')->assertSuccessful();
 
     expect(Game::where('pin', $pin)->first()->status)->toBe('aborted');

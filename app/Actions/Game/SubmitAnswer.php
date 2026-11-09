@@ -7,10 +7,10 @@ namespace App\Actions\Game;
 use App\Auth\GuestPlayer;
 use App\Enums\GameState;
 use App\Enums\QuestionKind;
-use App\Events\Game\AnswerReceived;
 use App\Exceptions\GameException;
 use App\Services\Game\GameRepository;
 use App\Services\Game\QuestionTypes\QuestionTypeResolver;
+use App\Services\Game\ServerClock;
 
 /**
  * Registra la respuesta de un jugador con validación server-side completa
@@ -34,16 +34,19 @@ class SubmitAnswer
         $state = $this->repo->getState($pin) ?? throw GameException::pinNotFound();
 
         if ($state['state'] !== GameState::Question->value) {
-            throw GameException::wrongState('No hay una pregunta en juego.');
+            // Si ESA pregunta se acaba de cerrar, es una respuesta tardía.
+            throw ($state['question_uuid'] ?? '') === $questionUuid
+                ? GameException::timeExpired()
+                : GameException::wrongState('No hay una pregunta en juego.');
         }
         if (($state['question_uuid'] ?? '') !== $questionUuid || (int) $state['current_index'] !== $questionIndex) {
             throw new GameException('STALE_QUESTION', 'Esa pregunta ya no está en juego.');
         }
 
-        $nowMs = (int) (microtime(true) * 1000);
+        $nowMs = ServerClock::nowMs();
         $endsAt = (int) $state['ends_at'];
         if ($nowMs > $endsAt + (int) config('poliquiz.answer_grace_ms')) {
-            throw new GameException('TIME_EXPIRED', 'El tiempo de esta pregunta ya terminó.', 422);
+            throw GameException::timeExpired();
         }
 
         // La estrategia del tipo valida y normaliza la respuesta (ids de opción,
@@ -52,23 +55,22 @@ class SubmitAnswer
         $answerFields = $this->types->for(QuestionKind::from($question['kind']))
             ->normalizeAnswer($payload, $question);
 
-        $recorded = $this->repo->recordAnswer($pin, $questionIndex, $player->uuid, [
+        // Los controles de arriba dan mensajes claros; el AUTORITATIVO es este:
+        // se registra atómicamente solo si la pregunta sigue abierta. Así una
+        // respuesta nunca entra después de que el cierre leyó las respuestas.
+        $result = $this->repo->recordAnswer($pin, $questionIndex, $questionUuid, $player->uuid, [
             ...$answerFields,
             'received_at' => $nowMs,
             'response_ms' => max(0, $nowMs - (int) $state['question_started_at']),
         ]);
-        if (! $recorded) {
-            throw new GameException('ALREADY_ANSWERED', 'Ya respondiste esta pregunta.');
-        }
 
-        $answered = $this->repo->answersCount($pin, $questionIndex);
-        $total = $this->repo->playersCount($pin);
-        AnswerReceived::dispatch($pin, $answered, $total);
+        match ($result) {
+            GameRepository::ANSWER_RECORDED => null,
+            GameRepository::ANSWER_DUPLICATE => throw new GameException('ALREADY_ANSWERED', 'Ya respondiste esta pregunta.'),
+            GameRepository::ANSWER_NOT_IN_ROOM => throw new GameException('NOT_IN_ROOM', 'Ya no estás en esta sala.', 401),
+            default => throw GameException::timeExpired(),
+        };
 
-        // Si respondieron todos, el cierre se adelanta (idempotente frente
-        // al CloseQuestionJob que vendrá por timeout).
-        if ($answered >= $total) {
-            $this->closeQuestion->handle($pin, $questionUuid);
-        }
+        $this->closeQuestion->closeIfEveryoneAnswered($pin, $state);
     }
 }

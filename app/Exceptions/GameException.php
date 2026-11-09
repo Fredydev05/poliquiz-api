@@ -57,6 +57,11 @@ class GameException extends Exception
         return new self('ROOM_FULL', 'La sala alcanzó el máximo de jugadores.', 422);
     }
 
+    public static function timeExpired(): self
+    {
+        return new self('TIME_EXPIRED', 'El tiempo de esta pregunta ya terminó.', 422);
+    }
+
     public static function wrongState(string $detail = ''): self
     {
         return new self('WRONG_STATE', trim('La acción no es válida en el estado actual de la partida. '.$detail));

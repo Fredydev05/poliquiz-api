@@ -10,6 +10,7 @@ use App\Enums\QuestionKind;
 use App\Http\Controllers\Controller;
 use App\Services\Game\GameRepository;
 use App\Services\Game\QuestionTypes\QuestionTypeResolver;
+use App\Services\Game\ServerClock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -97,7 +98,7 @@ class PlayerGameController extends Controller
             'question' => $question,
             'question_uuid' => $state['question_uuid'] ?? null,
             'ends_at_ms' => isset($state['ends_at']) ? (int) $state['ends_at'] : null,
-            'server_now_ms' => (int) (microtime(true) * 1000),
+            'server_now_ms' => ServerClock::nowMs(),
             'nickname' => $player->nickname,
             'player_uuid' => $player->uuid,
             'answered' => $answered,
@@ -105,10 +106,14 @@ class PlayerGameController extends Controller
             'streak' => $data['streak'] ?? 0,
             'rank' => $this->repo->rank($pin, $player->uuid),
             // Resultado de la última pregunta cerrada (feedback del celular).
+            // scored=false → encuesta (sin correcta); 0 < ratio < 1 → acierto parcial.
             'last_result' => isset($data['last_correct']) ? [
                 'is_correct' => (bool) $data['last_correct'],
                 'points' => (int) ($data['last_gain'] ?? 0),
                 'streak' => (int) ($data['streak'] ?? 0),
+                'ratio' => (float) ($data['last_ratio'] ?? ($data['last_correct'] ? 1.0 : 0.0)),
+                'scored' => (bool) ($data['last_scored'] ?? true),
+                'answered' => (bool) ($data['last_answered'] ?? true),
             ] : null,
         ]);
     }

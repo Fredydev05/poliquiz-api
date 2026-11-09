@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\Game\CloseQuestion;
 use App\Events\Game\GameEnded;
 use App\Events\Game\GetReadyShown;
 use App\Events\Game\QuestionEnded;
@@ -127,6 +128,35 @@ it('scores nobody on a poll and reveals the distribution without a correct answe
     // El jugador no suma puntos (la encuesta no puntúa).
     $me = jugar($tokens['J1'])->getJson("/api/v1/games/$pin/me")->json();
     expect($me['score'])->toBe(0)->and($me['last_result']['is_correct'])->toBeFalse();
+});
+
+it('keeps everyone\'s streak on a poll and reports a neutral result', function () {
+    Bus::fake([StartQuestionJob::class, CloseQuestionJob::class]);
+
+    [$host, $pin, $tokens] = salaCon(fn (Quiz $quiz) => crearPollSimple($quiz, 0), jugadores: 2);
+
+    comoDocente($host)->postJson("/api/v1/games/$pin/start");
+    lanzarPregunta($pin);
+
+    // Ambos vienen con racha 3 de preguntas anteriores.
+    foreach (Redis::hgetall("game:$pin:players") as $uuid => $json) {
+        Redis::hset("game:$pin:players", $uuid, json_encode([...json_decode($json, true), 'streak' => 3]));
+    }
+
+    // J1 vota, J2 no: al cerrar, NINGUNO debe perder la racha.
+    $uuid = Redis::hget("game:$pin", 'question_uuid');
+    jugar($tokens['J1'])->postJson("/api/v1/games/$pin/answers",
+        ['question_index' => 0, 'question_uuid' => $uuid, 'selected' => [1]])->assertOk();
+    app(CloseQuestion::class)->handle($pin, $uuid);
+
+    $votó = jugar($tokens['J1'])->getJson("/api/v1/games/$pin/me")->json();
+    $noVotó = jugar($tokens['J2'])->getJson("/api/v1/games/$pin/me")->json();
+
+    expect($votó['streak'])->toBe(3)
+        ->and($noVotó['streak'])->toBe(3)
+        ->and($votó['last_result']['scored'])->toBeFalse()
+        ->and($votó['last_result']['answered'])->toBeTrue()
+        ->and($noVotó['last_result']['answered'])->toBeFalse();
 });
 
 it('requires a body when saving a slide', function () {

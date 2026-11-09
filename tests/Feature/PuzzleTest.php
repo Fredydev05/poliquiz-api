@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Events\Game\QuestionEnded;
 use App\Jobs\CloseQuestionJob;
 use App\Jobs\StartQuestionJob;
+use App\Models\Game;
+use App\Models\PlayerAnswer;
 use App\Models\Quiz;
 use App\Models\User;
 use App\Services\Game\QuestionTypes\PuzzleQuestion;
@@ -64,7 +66,9 @@ it('gives partial points for a partly correct order', function () {
     $me = responderOrden($pin, $tokens['J1'], [1, 0, 2]);
 
     expect($me['last_result']['is_correct'])->toBeFalse()  // no está TODO bien
-        ->and($me['score'])->toBeGreaterThan(0);           // pero suma crédito parcial
+        ->and($me['score'])->toBeGreaterThan(0)            // pero suma crédito parcial
+        ->and($me['last_result']['points'])->toBe($me['score'])
+        ->and($me['last_result']['ratio'])->toEqualWithDelta(1 / 3, 0.001); // el celu muestra "¡Casi!"
 });
 
 it('rejects an order that is not a permutation of the pieces', function () {
@@ -129,4 +133,38 @@ it('requires 2 to 4 pieces when saving a puzzle', function () {
             ]],
         ],
     ])->assertStatus(422);
+});
+
+it('persists and reports a game with puzzle and short-answer questions', function () {
+    Bus::fake([StartQuestionJob::class, CloseQuestionJob::class]);
+    [$host, $pin, $tokens] = salaCon(function (Quiz $quiz) {
+        crearPuzzle($quiz, 0);
+        $short = $quiz->questions()->create([
+            'position' => 1, 'kind' => 'short', 'title' => 'Capital de Paraguay', 'time_limit' => 20, 'points_mode' => 'standard',
+        ]);
+        $short->options()->create(['position' => 0, 'text' => 'Asunción', 'is_correct' => true]);
+    });
+    $next = fn () => comoDocente($host)->postJson("/api/v1/games/$pin/next")->assertOk();
+
+    comoDocente($host)->postJson("/api/v1/games/$pin/start");
+    lanzarPregunta($pin);
+    responderOrden($pin, $tokens['J1'], [0, 1, 2]);   // puzzle → results
+    $next();                                          // → leaderboard
+    $next();                                          // → get_ready(1)
+    lanzarPregunta($pin);
+    $uuid = Redis::hget("game:$pin", 'question_uuid');
+    jugar($tokens['J1'])->postJson("/api/v1/games/$pin/answers",
+        ['question_index' => 1, 'question_uuid' => $uuid, 'text' => 'asuncion'])->assertOk();
+    $next();                                          // → podium
+    $next();                                          // → ended (persiste)
+
+    $game = Game::where('pin', $pin)->first();
+    expect($game->status)->toBe('ended')
+        ->and(PlayerAnswer::pluck('selected')->all())->toEqualCanonicalizing([[0, 1, 2], ['asuncion']]);
+
+    comoDocente($host)->getJson("/api/v1/reports/games/{$game->id}/questions")
+        ->assertOk()
+        ->assertJsonPath('questions.0.correct', 1)
+        ->assertJsonPath('questions.0.options.0.count', null)  // un orden no es "elección"
+        ->assertJsonPath('questions.1.correct', 1);
 });

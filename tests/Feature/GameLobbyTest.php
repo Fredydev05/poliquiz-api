@@ -146,3 +146,32 @@ it('returns the roster in the host state endpoint', function () {
         ->assertJsonPath('state', 'lobby')
         ->assertJsonCount(2, 'players');
 });
+
+it('lets a whole classroom behind one IP join the room', function () {
+    [, $pin] = abrirSala();
+
+    // 40 alumnos con la misma IP pública (wifi de la facultad).
+    foreach (range(1, 40) as $i) {
+        $this->postJson("/api/v1/games/$pin/join", ['nickname' => "Alumno$i"])->assertCreated();
+    }
+
+    expect(Redis::hlen("game:$pin:players"))->toBe(40);
+});
+
+it('lets several classrooms behind the same IP join their rooms in the same minute', function () {
+    config(['poliquiz.max_players' => 10]); // límite por sala = 20/min
+
+    [, $sala1] = abrirSala();
+    [, $sala2] = abrirSala();
+    foreach ([$sala1, $sala2] as $pin) {
+        foreach (range(1, 10) as $i) {
+            $this->postJson("/api/v1/games/$pin/join", ['nickname' => "Alumno$i"])->assertCreated();
+        }
+    }
+
+    // Pero una misma sala no se puede martillar sin límite desde una IP.
+    foreach (range(1, 10) as $i) {
+        $this->postJson("/api/v1/games/$sala1/join", ['nickname' => "Extra$i"]); // sala llena: 422
+    }
+    $this->postJson("/api/v1/games/$sala1/join", ['nickname' => 'Otro'])->assertStatus(429);
+});

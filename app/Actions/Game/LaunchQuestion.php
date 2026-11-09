@@ -13,6 +13,7 @@ use App\Jobs\StartQuestionJob;
 use App\Services\Game\GameRepository;
 use App\Services\Game\GameStateMachine;
 use App\Services\Game\QuestionTypes\QuestionTypeResolver;
+use App\Services\Game\ServerClock;
 use Illuminate\Support\Str;
 
 /**
@@ -39,6 +40,9 @@ class LaunchQuestion
         $version = $this->machine->transition($pin, $from, GameState::GetReady, [
             'current_index' => (string) $index,
             'question_uuid' => $questionUuid,
+            // Fin exacto del reveal: StartQuestionJob no arranca antes (la
+            // cola trunca el delay a segundos y lo acortaría hasta ~1 s).
+            'ready_until' => (string) (ServerClock::nowMs() + $readyMs),
         ]);
 
         // El reveal ya muestra el enunciado + imagen (sin opciones): las manda
@@ -66,7 +70,7 @@ class LaunchQuestion
             return;
         }
 
-        $nowMs = (int) (microtime(true) * 1000);
+        $nowMs = ServerClock::nowMs();
         $endsAtMs = $nowMs + $question['time_limit'] * 1000;
 
         $version = $this->machine->tryTransition($pin, GameState::GetReady, GameState::Question, [
