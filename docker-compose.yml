@@ -4,7 +4,7 @@ services:
     container_name: postgres_db
     restart: always
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: poliquiz
       POSTGRES_USER: poliquiz
