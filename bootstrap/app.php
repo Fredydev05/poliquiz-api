@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\GameException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,4 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // Rechazos de dominio esperables (apodo tomado, respuesta tardía...):
+        // ya se le responden al cliente con su código. Loguearlos como ERROR
+        // llenaría el log en cada clase y escondería los errores reales.
+        $exceptions->dontReport(GameException::class);
     })->create();

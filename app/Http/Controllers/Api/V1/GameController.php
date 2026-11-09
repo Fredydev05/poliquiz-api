@@ -13,6 +13,7 @@ use App\Exceptions\GameException;
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
 use App\Services\Game\GameRepository;
+use App\Services\Game\ServerClock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -45,6 +46,7 @@ class GameController extends Controller
     {
         $state = $this->requireHostedGame($request, $pin);
         $index = (int) $state['current_index'];
+        $players = $this->repo->players($pin);
 
         // Si hay una pregunta/diapositiva en curso o revelada, va COMPLETA (el
         // host sí puede ver las correctas y el cuerpo de la slide: es su proyección).
@@ -64,10 +66,11 @@ class GameController extends Controller
             'question_uuid' => $state['question_uuid'] ?? null,
             'question' => $question,
             'ends_at_ms' => isset($state['ends_at']) ? (int) $state['ends_at'] : null,
-            'server_now_ms' => (int) (microtime(true) * 1000),
+            'server_now_ms' => ServerClock::nowMs(),
+            // Exacto: la expulsión borra la respuesta del expulsado.
             'answered_count' => $index >= 0 ? $this->repo->answersCount($pin, $index) : 0,
             'top' => $this->repo->top($pin, 5),
-            'players' => collect($this->repo->players($pin))
+            'players' => collect($players)
                 ->map(fn (array $p, string $uuid) => [
                     'uuid' => $uuid,
                     'nickname' => $p['nickname'],

@@ -11,7 +11,10 @@ use Illuminate\Support\Str;
 /** Expulsa a un jugador: sale del roster, su sesión muere y se avisa por WS. */
 class KickPlayer
 {
-    public function __construct(private readonly GameRepository $repo) {}
+    public function __construct(
+        private readonly GameRepository $repo,
+        private readonly CloseQuestion $closeQuestion,
+    ) {}
 
     public function handle(string $pin, string $playerUuid): void
     {
@@ -26,5 +29,11 @@ class KickPlayer
         // Se difunde SIEMPRE (aunque ya no esté en Redis): cubre al "fantasma"
         // que quedó suscripto al canal tras un kick previo o una reconexión.
         PlayerKicked::dispatch($pin, $playerUuid);
+
+        // Si el expulsado era el único que faltaba responder, la ronda ya
+        // está completa: se cierra sin esperar el timer.
+        if ($player !== null) {
+            $this->closeQuestion->closeIfEveryoneAnswered($pin);
+        }
     }
 }

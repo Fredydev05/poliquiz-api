@@ -9,6 +9,9 @@ use App\Models\Game;
 use App\Models\Quiz;
 use App\Models\User;
 use App\Services\Game\GameRepository;
+use App\Services\Game\ServerClock;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -32,8 +35,7 @@ class CreateGame
             'started_at' => now(),
         ]);
 
-        $pin = $this->repo->reservePin($game->id);
-        $game->update(['pin' => $pin]);
+        $pin = $this->assignPin($game);
 
         $this->repo->initGame($pin, [
             'state' => GameState::Lobby->value,
@@ -45,10 +47,36 @@ class CreateGame
             'questions_total' => (string) count($snapshot['questions']),
             'current_index' => '-1',
             'locked' => '0',
-            'last_activity' => (string) (int) (microtime(true) * 1000),
+            'last_activity' => (string) ServerClock::nowMs(),
         ]);
 
         return ['game' => $game, 'pin' => $pin];
+    }
+
+    /**
+     * Reserva un PIN libre en Redis y lo graba en la fila. Redis puede no
+     * conocer un PIN que Postgres todavía tiene en una partida 'active' (sala
+     * expirada o Redis reiniciado antes de que pase el barrido): el índice
+     * único lo rechaza, liberamos esa reserva y probamos con otro.
+     */
+    private function assignPin(Game $game): string
+    {
+        for ($intento = 1; ; $intento++) {
+            $pin = $this->repo->reservePin($game->id);
+
+            try {
+                // Transacción propia = savepoint: el error no envenena una
+                // transacción externa (Postgres la abortaría entera).
+                DB::transaction(fn () => $game->update(['pin' => $pin]));
+
+                return $pin;
+            } catch (UniqueConstraintViolationException $e) {
+                $this->repo->releasePin($pin, $game->id);
+                if ($intento >= 5) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     /**

@@ -62,7 +62,7 @@ Route::prefix('v1')->group(function (): void {
 
     // ---- Partidas: jugador invitado ----
     Route::post('/games/{pin}/join', [PlayerGameController::class, 'join'])
-        ->middleware('throttle:20,1');
+        ->middleware('throttle:game-join');
     Route::middleware('auth:player')->group(function (): void {
         Route::get('/games/{pin}/me', [PlayerGameController::class, 'me']);
         Route::post('/games/{pin}/answers', [PlayerGameController::class, 'answer'])

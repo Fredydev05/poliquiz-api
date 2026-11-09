@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Events\Game;
 
+use App\Services\Game\ServerClock;
+
 /**
  * La pregunta quedó en juego. Viaja la vista del jugador (`playerView` de la
  * estrategia): nunca incluye datos de la correcta, y en "escribe la respuesta"
@@ -35,7 +37,7 @@ class QuestionStarted extends GameBroadcastEvent
             'question_uuid' => $this->questionUuid,
             ...$this->playerView, // kind, title, image_url, time_limit, points_mode, options?
             'ends_at_ms' => $this->endsAtMs,
-            'server_now_ms' => (int) (microtime(true) * 1000),
+            'server_now_ms' => ServerClock::nowMs(),
         ];
     }
 }
