@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Game\QuestionTypes;
 
 use App\Enums\QuestionKind;
+use App\Services\Game\TextModerator;
 
 /**
  * Mapea cada QuestionKind a su estrategia. Es el ÚNICO lugar que hay que tocar
@@ -24,6 +25,9 @@ final class QuestionTypeResolver
 
     private readonly QuestionType $slide;
 
+    /** @var array<string, QuestionType> respuesta libre: nube, abierta, ideas */
+    private readonly array $freeText;
+
     public function __construct()
     {
         $this->scoredOptions = new OptionQuestion(scored: true);
@@ -31,6 +35,13 @@ final class QuestionTypeResolver
         $this->short = new ShortAnswerQuestion;
         $this->puzzle = new PuzzleQuestion;
         $this->slide = new SlideItem;
+
+        $moderator = new TextModerator;
+        $libres = [QuestionKind::WordCloud, QuestionKind::Open, QuestionKind::Brainstorm];
+        $this->freeText = array_combine(
+            array_map(fn (QuestionKind $k) => $k->value, $libres),
+            array_map(fn (QuestionKind $k) => new FreeTextQuestion($k, $moderator), $libres),
+        );
     }
 
     public function for(QuestionKind $kind): QuestionType
@@ -43,6 +54,9 @@ final class QuestionTypeResolver
             QuestionKind::Short => $this->short,
             QuestionKind::Puzzle => $this->puzzle,
             QuestionKind::Slide => $this->slide,
+            QuestionKind::WordCloud,
+            QuestionKind::Open,
+            QuestionKind::Brainstorm => $this->freeText[$kind->value],
         };
     }
 }

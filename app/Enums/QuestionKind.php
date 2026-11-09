@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Enums;
 
 /**
- * Tipos de pregunta jugables en v1 (todos con respuesta correcta y puntos).
- * Los tipos de opinión (encuesta, nube, etc.) llegan en v2: el enum es el
- * único lugar a extender junto con sus reglas de validación.
+ * Tipos de pregunta. El enum es la fuente única de sus reglas (opciones,
+ * correctas, si puntúa); cada tipo tiene su estrategia en QuestionTypes/.
  */
 enum QuestionKind: string
 {
@@ -18,6 +17,9 @@ enum QuestionKind: string
     case Short = 'short';         // el alumno ESCRIBE; las "opciones" son respuestas aceptadas
     case Puzzle = 'puzzle';       // ORDENAR piezas; las opciones van en el orden correcto
     case Slide = 'slide';         // no interactiva: solo se proyecta, sin timer ni puntos
+    case WordCloud = 'wordcloud'; // el alumno escribe 1 palabra corta → nube; no puntúa
+    case Open = 'open';           // respuesta libre (hasta 250 car.) → muro; no puntúa
+    case Brainstorm = 'brainstorm'; // hasta 3 ideas por alumno → tablero agrupado; no puntúa
 
     /** ¿Recibe respuestas y corre timer? (una diapositiva no). */
     public function isInteractive(): bool
@@ -30,7 +32,7 @@ enum QuestionKind: string
     {
         return match ($this) {
             self::Quiz, self::TrueFalse, self::Multi, self::Short, self::Puzzle => true,
-            self::Poll, self::Slide => false,
+            self::Poll, self::Slide, self::WordCloud, self::Open, self::Brainstorm => false,
         };
     }
 
@@ -39,7 +41,8 @@ enum QuestionKind: string
     {
         return match ($this) {
             self::Quiz, self::TrueFalse, self::Multi, self::Poll => 'options',
-            self::Short => 'text',
+            self::Short, self::WordCloud, self::Open => 'text',
+            self::Brainstorm => 'ideas',
             self::Puzzle => 'order',
             self::Slide => 'none',
         };
@@ -52,7 +55,7 @@ enum QuestionKind: string
             self::Quiz, self::TrueFalse => [1, 1],
             self::Multi, self::Short => [1, 4],
             self::Puzzle => [0, 4], // el orden es la respuesta, no un flag "correcta"
-            self::Poll, self::Slide => [0, 0],
+            self::Poll, self::Slide, self::WordCloud, self::Open, self::Brainstorm => [0, 0],
         };
     }
 
@@ -63,7 +66,8 @@ enum QuestionKind: string
             self::TrueFalse => [2, 2],
             self::Quiz, self::Multi, self::Poll, self::Puzzle => [2, 4],
             self::Short => [1, 4],
-            self::Slide => [0, 0],
+            // Respuesta libre: no hay opciones que cargar.
+            self::Slide, self::WordCloud, self::Open, self::Brainstorm => [0, 0],
         };
     }
 }

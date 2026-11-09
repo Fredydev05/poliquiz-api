@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\GameReportListResource;
 use App\Models\Game;
 use App\Models\PlayerAnswer;
+use App\Services\Game\TextModerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -42,13 +43,17 @@ class ReportController extends Controller
         $questions = $game->quiz_snapshot['questions'] ?? [];
         $answers = $this->answersByQuestion($game);
 
+        // Solo cuentan las preguntas con respuesta correcta: una encuesta, una
+        // diapositiva o una nube no pueden bajar la precisión ni ser "la más difícil".
+        $puntuables = array_filter($questions, fn (array $q) => $this->isScored($q));
+
         $totalCorrect = $players->sum('answers_correct');
-        $totalPossible = max(1, $players->count() * count($questions));
+        $totalPossible = max(1, $players->count() * count($puntuables));
 
         // Pregunta más difícil = menor tasa de acierto (entre las respondidas).
         $hardest = null;
         $peorTasa = 2.0;
-        foreach ($questions as $i => $q) {
+        foreach ($puntuables as $i => $q) {
             $qa = $answers[$i] ?? collect();
             if ($qa->isEmpty()) {
                 continue;
@@ -91,15 +96,19 @@ class ReportController extends Controller
             $answered = $qa->count();
             // Solo en los tipos de opciones "selected" son ids elegidos; en
             // rompecabezas es un orden y en "escribe" un texto: no hay conteo.
-            $porOpcion = QuestionKind::from($q['kind'])->answerShape() === 'options';
+            $shape = QuestionKind::from($q['kind'])->answerShape();
+            $porOpcion = $shape === 'options';
+            $scored = $this->isScored($q);
 
             return [
                 'index' => $i,
                 'title' => $q['title'],
                 'kind' => $q['kind'],
                 'answered' => $answered,
+                'scored' => $scored,
                 'correct' => $qa->where('is_correct', true)->count(),
-                'accuracy' => $answered ? round($qa->where('is_correct', true)->count() / $answered * 100) : 0,
+                // Sin respuesta correcta (encuesta, nube…) no hay precisión que medir.
+                'accuracy' => ! $scored ? null : ($answered ? round($qa->where('is_correct', true)->count() / $answered * 100) : 0),
                 'avg_response_ms' => $answered ? (int) round($qa->avg('response_ms')) : null,
                 'options' => collect($q['options'] ?? [])->map(fn (array $o) => [
                     'id' => $o['id'],
@@ -110,6 +119,8 @@ class ReportController extends Controller
                         ? $qa->filter(fn ($a) => in_array($o['id'], $a->selected, true))->count()
                         : null,
                 ])->values(),
+                // Lo que escribieron (escribe, nube, abierta, ideas), agrupado.
+                'texts' => in_array($shape, ['text', 'ideas'], true) ? $this->groupTexts($qa) : null,
             ];
         });
 
@@ -151,6 +162,33 @@ class ReportController extends Controller
      *
      * @return Collection<int, Collection<int, PlayerAnswer>>
      */
+    private function isScored(array $question): bool
+    {
+        return QuestionKind::from($question['kind'])->isScored();
+    }
+
+    /**
+     * Agrupa los textos iguales (sin importar mayúsculas ni acentos), los más
+     * repetidos primero.
+     *
+     * @return list<array{text: string, count: int}>
+     */
+    private function groupTexts(Collection $answers): array
+    {
+        $groups = [];
+        foreach ($answers as $answer) {
+            foreach ($answer->selected as $text) {
+                $key = TextModerator::normalize((string) $text);
+                $groups[$key] ??= ['text' => (string) $text, 'count' => 0];
+                $groups[$key]['count']++;
+            }
+        }
+        $groups = array_values($groups);
+        usort($groups, fn (array $a, array $b) => $b['count'] <=> $a['count']);
+
+        return array_slice($groups, 0, 200);
+    }
+
     private function answersByQuestion(Game $game)
     {
         return PlayerAnswer::whereIn('game_player_id', $game->players()->select('id'))

@@ -60,8 +60,8 @@ class PersistGameResults
                 $answers[] = [
                     'question_index' => $i,
                     // La forma depende del tipo: ids elegidos, el orden del
-                    // rompecabezas o [texto] en "escribe la respuesta".
-                    'selected' => $a['selected'] ?? $a['order'] ?? (isset($a['text']) ? [$a['text']] : []),
+                    // rompecabezas, las ideas, o [texto] en los de texto libre.
+                    'selected' => $a['selected'] ?? $a['order'] ?? $a['ideas'] ?? (isset($a['text']) ? [$a['text']] : []),
                     'response_ms' => $a['response_ms'],
                     'is_correct' => $a['is_correct'] ?? false,
                     'points' => $a['points'] ?? 0,

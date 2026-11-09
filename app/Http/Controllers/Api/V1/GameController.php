@@ -8,11 +8,13 @@ use App\Actions\Game\AdvanceGame;
 use App\Actions\Game\CreateGame;
 use App\Actions\Game\EndGame;
 use App\Actions\Game\KickPlayer;
+use App\Enums\QuestionKind;
 use App\Events\Game\GameLocked;
 use App\Exceptions\GameException;
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
 use App\Services\Game\GameRepository;
+use App\Services\Game\QuestionTypes\QuestionTypeResolver;
 use App\Services\Game\ServerClock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +22,10 @@ use Illuminate\Http\Request;
 /** Acciones del DOCENTE anfitrión sobre su partida. */
 class GameController extends Controller
 {
-    public function __construct(private readonly GameRepository $repo) {}
+    public function __construct(
+        private readonly GameRepository $repo,
+        private readonly QuestionTypeResolver $types,
+    ) {}
 
     /** Abre la sala para un quiz propio (o público) con preguntas. */
     public function store(Request $request, CreateGame $action): JsonResponse
@@ -55,6 +60,14 @@ class GameController extends Controller
             $question = $this->repo->snapshot($pin)['questions'][$index] ?? null;
         }
 
+        // En plena revelación, el mismo payload de QuestionEnded: un refresh del
+        // proyector no pierde la nube, el muro, la distribución, etc.
+        $reveal = null;
+        if ($state['state'] === 'results' && $question !== null) {
+            $answers = array_intersect_key($this->repo->answers($pin, $index), $players);
+            $reveal = $this->types->for(QuestionKind::from($question['kind']))->reveal($answers, $question);
+        }
+
         return response()->json([
             'pin' => $pin,
             'state' => $state['state'],
@@ -65,6 +78,7 @@ class GameController extends Controller
             'current_index' => $index,
             'question_uuid' => $state['question_uuid'] ?? null,
             'question' => $question,
+            'reveal' => $reveal,
             'ends_at_ms' => isset($state['ends_at']) ? (int) $state['ends_at'] : null,
             'server_now_ms' => ServerClock::nowMs(),
             // Exacto: la expulsión borra la respuesta del expulsado.
